@@ -1,4 +1,4 @@
-# LLM Based Curriculum Analyzer 📚
+# LLM Based Curriculum Analyzer
 
 An intelligent system that leverages Large Language Models to analyze university curricula and question papers, providing structured insights into course content, learning outcomes, and cognitive complexity using Bloom's Taxonomy classification.
 
@@ -93,106 +93,6 @@ An intelligent system that leverages Large Language Models to analyze university
 
 ---
 
-## Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Google AI API key (Gemini)
-
-### Setup
-
-1. **Clone the repository**
-
-   ```bash
-   git clone <repository-url>
-   cd "LLM Based Curriculum Analyzer"
-   ```
-
-2. **Create virtual environment**
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
-
-4. **Environment configuration**
-
-   ```bash
-   # Create .env file in backend directory
-   echo "GOOGLE_API_KEY=your_google_api_key_here" > .env
-   ```
-
-5. **Run the application**
-   ```bash
-   uvicorn main:app --reload
-   ```
-
-The API will be available at `http://localhost:8000`
-
----
-
-## Usage
-
-### API Endpoints
-
-#### Curriculum Analysis
-
-```bash
-POST /curriculum/analyze
-```
-
-Upload a curriculum PDF and receive structured analysis with:
-
-- Broad topic identification
-- Bloom's taxonomy classification
-- Learning outcome validation
-- Coverage analysis
-
-#### Question Paper Analysis
-
-```bash
-POST /qpaper/analyze
-```
-
-Upload a question paper PDF and receive:
-
-- Question categorization
-- Cognitive level mapping
-- Topic coverage assessment
-- Difficulty distribution
-
-### Example Usage
-
-```python
-import requests
-
-# Analyze curriculum
-with open('curriculum.pdf', 'rb') as f:
-    response = requests.post(
-        'http://localhost:8000/curriculum/analyze',
-        files={'file': f}
-    )
-    analysis = response.json()
-    print(analysis)
-```
-
-### API Documentation
-
-Once the server is running, visit:
-
-- **Interactive API docs**: `http://localhost:8000/docs`
-- **Alternative docs**: `http://localhost:8000/redoc`
-
----
-
 ## Project Structure
 
 ```
@@ -220,76 +120,8 @@ LLM Based Curriculum Analyzer/
 
 ---
 
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the `backend` directory:
-
-```env
-# Google AI Configuration
-GOOGLE_API_KEY=your_google_ai_api_key
-
-# Optional: Server Configuration
-HOST=0.0.0.0
-PORT=8000
-DEBUG=true
-```
-
-### Customizing Prompts
-
-The system uses Markdown-based prompt templates located in `backend/prompts/`:
-
-- `curriculum_parser.md`: Template for curriculum analysis
-- `qpaper_parser.md`: Template for question paper analysis
-
-Modify these files to customize the analysis behavior and output format.
-
----
-
-## Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow PEP 8 style guidelines
-- Add docstrings to all functions and classes
-- Include unit tests for new features
-- Update documentation as needed
-
----
-
 ## License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)
-
----
-
-## Acknowledgments
-
-- **Google AI**: For providing the powerful Gemini language model
-- **FastAPI Community**: For the excellent web framework
-- **PyMuPDF**: For robust PDF processing capabilities
-- **Educational Research Community**: For Bloom's Taxonomy framework
-
----
-
-## Support
-
-If you encounter any issues or have questions:
-
-1. Check the [API documentation](http://localhost:8000/docs) for endpoint details
-2. Review the prompt templates in `backend/prompts/` for customization options
-3. Ensure your Google AI API key is properly configured
-4. Verify that all dependencies are installed correctly
-
-For additional support, please open an issue in the repository.
