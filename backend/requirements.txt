@@ -1,0 +1,8 @@
+google-genai
+python-dotenv
+PyMuPDF
+fastapi
+uvicorn[standard]
+python-multipart
+Pillow
+pdf2image
