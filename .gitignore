@@ -168,15 +168,6 @@ Thumbs.db
 # PDF files (if you want to ignore uploaded PDFs)
 *.pdf
 
-# Image files (if you want to ignore processed images)
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.svg
-
 # Backup files
 *.bak
 *.backup

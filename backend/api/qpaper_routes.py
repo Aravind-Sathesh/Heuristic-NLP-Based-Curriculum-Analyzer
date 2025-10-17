@@ -1,5 +1,3 @@
-# api/qpaper_routes.py
-
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import shutil
 import os
@@ -11,10 +9,6 @@ router = APIRouter()
 
 @router.post("/analyze")
 async def analyze_qpaper_endpoint(file: UploadFile = File(...)):
-    """
-    API endpoint to upload a question paper PDF and extract all questions,
-    handling text and images appropriately.
-    """
     os.makedirs("uploads", exist_ok=True)
     temp_filename = f"{uuid.uuid4()}.pdf"
     temp_filepath = os.path.join("uploads", temp_filename)

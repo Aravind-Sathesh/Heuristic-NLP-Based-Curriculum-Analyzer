@@ -2,6 +2,32 @@
 
 ---
 
+### **Additional Requirements**
+
+For EACH question and sub-question, you must also:
+
+1. **Classify the Topic:**
+
+   - **CRITICAL**: You will be provided with a list of curriculum topics below
+   - For each question/sub-question, select the MOST RELEVANT topic from the provided list
+   - Choose the topic that best matches the question's content
+   - **IMPORTANT**: Use the EXACT topic name from the provided list (case-sensitive)
+   - If multiple topics apply, choose the primary/main topic
+   - If no topic fits well, use the closest match from the provided list
+
+   **Available Curriculum Topics:**
+   {curriculum_topics}
+
+2. **Classify Bloom's Taxonomy Level:** Determine the cognitive level using one of these exact terms:
+   - **Remembering**: Recall facts, terms, basic concepts (e.g., "Define...", "List...", "What is...")
+   - **Understanding**: Explain ideas or concepts (e.g., "Describe...", "Explain...", "Summarize...")
+   - **Applying**: Use information in new situations (e.g., "Calculate...", "Solve...", "Apply...")
+   - **Analyzing**: Draw connections, examine relationships (e.g., "Analyze...", "Compare...", "Examine...")
+   - **Evaluating**: Justify a decision or course of action (e.g., "Evaluate...", "Critique...", "Judge...")
+   - **Creating**: Produce new or original work (e.g., "Design...", "Construct...", "Develop...")
+
+---
+
 ### **Definitive List of Content to IGNORE**
 
 Before you begin, you must internalize this list of non-question content. You will filter out and completely ignore anything that matches these descriptions. This is your primary directive.
@@ -49,23 +75,32 @@ Before you write any JSON, you MUST follow this internal process:
 
 ```json
 {{
-  "questions": [
-    {{
-      "questionNumber": "1",
-      "questionText": "The introductory text for the entire Question 1, if any.",
-      "imageDescription": "A single, consolidated description of the diagram for Question 1, if any. Leave as '' if none.",
-      "subQuestions": [
-        {{
-          "part": "a",
-          "text": "The full text of question 1 part a. This must not be empty."
-        }},
-        {{
-          "part": "b",
-          "text": "The full text of question 1 part b. This must not be empty."
-        }}
-      ]
-    }}
-  ]
+  "status": "success",
+  "data": {{
+    "questions": [
+      {{
+        "questionNumber": "1",
+        "questionText": "The introductory text for the entire Question 1, if any.",
+        "topic": "The main topic this question is testing (e.g., 'Fourier Transform', 'DC Circuits', 'Linear Algebra'). Infer from the question content.",
+        "bloomLevel": "The cognitive level from Bloom's Taxonomy: one of [Remembering, Understanding, Applying, Analyzing, Evaluating, Creating]",
+        "imageDescription": "A single, consolidated description of the diagram for Question 1, if any. Leave as '' if none.",
+        "subQuestions": [
+          {{
+            "part": "a",
+            "text": "The full text of question 1 part a. This must not be empty.",
+            "topic": "The main topic this sub-question is testing. Infer from the question content.",
+            "bloomLevel": "The cognitive level from Bloom's Taxonomy for this sub-question"
+          }},
+          {{
+            "part": "b",
+            "text": "The full text of question 1 part b. This must not be empty.",
+            "topic": "The main topic this sub-question is testing. Infer from the question content.",
+            "bloomLevel": "The cognitive level from Bloom's Taxonomy for this sub-question"
+          }}
+        ]
+      }}
+    ]
+  }}
 }}
 ```
 
