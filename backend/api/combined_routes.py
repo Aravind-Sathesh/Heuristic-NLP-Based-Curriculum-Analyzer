@@ -1,8 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import shutil
 import os
 import uuid
-from core.analysis_logic import analyze_curriculum_from_pdf, analyze_qpaper_from_pdf
+from core.analysis_logic import analyze_curriculum_from_pdf, analyze_qpaper_from_pdf, analyze_qpaper_from_pdf_images
+from typing import Optional
 
 router = APIRouter()
 
@@ -13,12 +14,22 @@ def analyze_coverage(curriculum_data, qpaper_data):
             "data", {}).get("topicProfiles", [])
         qpaper_questions = qpaper_data.get("data", {}).get("questions", [])
 
+        # Get exam type and scope information
+        exam_type = qpaper_data.get("data", {}).get(
+            "examType", "Comprehensive")
+        exam_scope = qpaper_data.get("data", {}).get("examScope", "")
+
+        # Determine if this is a mid-semester exam (partial coverage expected)
+        is_mid_semester = exam_type == "Mid-Semester"
+
         if not curriculum_topics or not qpaper_questions:
             return {
                 "coveragePercentage": 0,
                 "testedTopics": [],
                 "missedTopics": [],
-                "topicAnalysis": []
+                "topicAnalysis": [],
+                "examType": exam_type,
+                "examScope": exam_scope
             }
 
         # Build topic map: topic_name -> {curriculum details, questions}
@@ -123,7 +134,10 @@ def analyze_coverage(curriculum_data, qpaper_data):
             "coveragePercentage": round(coverage_percentage),
             "testedTopics": tested_topics,
             "missedTopics": missed_topics,
-            "topicAnalysis": topic_analysis
+            "topicAnalysis": topic_analysis,
+            "examType": exam_type,
+            "examScope": exam_scope,
+            "isMidSemester": is_mid_semester
         }
 
     except Exception as e:
@@ -132,7 +146,10 @@ def analyze_coverage(curriculum_data, qpaper_data):
             "coveragePercentage": 0,
             "testedTopics": [],
             "missedTopics": [],
-            "topicAnalysis": []
+            "topicAnalysis": [],
+            "examType": "Comprehensive",
+            "examScope": "",
+            "isMidSemester": False
         }
 
 
@@ -147,27 +164,71 @@ def generate_insights(analysis):
     tested = analysis["testedTopics"]
     missed = analysis["missedTopics"]
     topics = analysis["topicAnalysis"]
+    exam_type = analysis.get("examType", "Comprehensive")
+    exam_scope = analysis.get("examScope", "")
+    is_mid_semester = analysis.get("isMidSemester", False)
 
-    # Coverage insights
-    if coverage >= 80:
+    # Coverage insights - adjusted based on exam type
+    if is_mid_semester:
+        # Mid-semester exams: Expect 40-60% coverage, which is NORMAL
         insights["strengths"].append(
-            f"Excellent curriculum coverage at {coverage}% - the question paper addresses most topics comprehensively.")
-    elif coverage >= 60:
-        insights["strengths"].append(
-            f"Good curriculum coverage at {coverage}%, though there's room for improvement.")
-    elif coverage >= 40:
-        insights["weaknesses"].append(
-            f"Moderate coverage at {coverage}% - several curriculum topics are not assessed.")
+            f"📋 **Mid-Semester Exam** detected{f' (Scope: {exam_scope})' if exam_scope else ''} - Partial syllabus coverage is expected."
+        )
+
+        if coverage >= 40:
+            insights["strengths"].append(
+                f"✓ Good coverage at {coverage}% for a mid-semester exam - appropriate scope for the exam type."
+            )
+        elif coverage >= 25:
+            insights["strengths"].append(
+                f"Moderate coverage at {coverage}% - acceptable for a mid-semester exam, though slightly narrow."
+            )
+        else:
+            insights["weaknesses"].append(
+                f"Limited coverage at {coverage}% - even for a mid-semester exam, this seems restrictive."
+            )
+
+        # For mid-semester, only mention missed topics if coverage is unusually low
+        if missed and coverage < 30:
+            insights["recommendations"].append(
+                f"Consider including questions from additional topics within the mid-semester scope to broaden assessment."
+            )
     else:
-        insights["weaknesses"].append(
-            f"Low coverage at {coverage}% - many curriculum topics are missing from the assessment.")
+        # Comprehensive exam: Expect 70-100% coverage
+        insights["strengths"].append(
+            f"📋 **Comprehensive Exam** detected{f' (Scope: {exam_scope})' if exam_scope else ''} - Full syllabus coverage is expected."
+        )
 
-    # Missed topics insights
-    if missed:
-        insights["weaknesses"].append(
-            f"{len(missed)} critical topics are completely untested: {', '.join(missed[:3])}{'...' if len(missed) > 3 else ''}.")
-        insights["recommendations"].append(
-            f"Add questions covering the missed topics: {', '.join(missed)}.")
+        if coverage >= 80:
+            insights["strengths"].append(
+                f"✓ Excellent curriculum coverage at {coverage}% - the question paper addresses most topics comprehensively."
+            )
+        elif coverage >= 60:
+            insights["strengths"].append(
+                f"Good curriculum coverage at {coverage}%, though there's room for improvement."
+            )
+        elif coverage >= 40:
+            insights["weaknesses"].append(
+                f"⚠ Moderate coverage at {coverage}% - several curriculum topics are not assessed in this comprehensive exam."
+            )
+        else:
+            insights["weaknesses"].append(
+                f"❌ Low coverage at {coverage}% - many curriculum topics are missing from this comprehensive assessment."
+            )
+
+        # Comprehensive exams should mention missed topics more prominently
+        if missed:
+            missed_count = len(missed)
+            total_topics = len(tested) + missed_count
+            missed_percentage = (
+                missed_count / total_topics * 100) if total_topics > 0 else 0
+
+            insights["weaknesses"].append(
+                f"{missed_count} topics ({round(missed_percentage)}%) are completely untested: {', '.join(missed[:3])}{'...' if len(missed) > 3 else ''}."
+            )
+            insights["recommendations"].append(
+                f"For a comprehensive exam, add questions covering the missed topics: {', '.join(missed[:5])}{'...' if len(missed) > 5 else ''}."
+            )
 
     # Bloom's taxonomy alignment
     misaligned_topics = []
@@ -230,14 +291,26 @@ def generate_insights(analysis):
 @router.post("/analyze")
 async def analyze_combined_endpoint(
     curriculum: UploadFile = File(...),
-    questionPaper: UploadFile = File(...)
+    questionPaper: UploadFile = File(...),
+    useImageMode: Optional[str] = Form("false")
 ):
+    """
+    Combined analysis endpoint that supports both text-based and image-based analysis.
+
+    Args:
+        curriculum: PDF file of the curriculum
+        questionPaper: PDF file of the question paper
+        useImageMode: "true" or "false" - whether to use vision-based analysis for question paper
+    """
     os.makedirs("uploads", exist_ok=True)
 
     curriculum_filename = f"curriculum_{uuid.uuid4()}.pdf"
     qpaper_filename = f"qpaper_{uuid.uuid4()}.pdf"
     curriculum_filepath = os.path.join("uploads", curriculum_filename)
     qpaper_filepath = os.path.join("uploads", qpaper_filename)
+
+    # Convert string to boolean
+    use_vision = useImageMode.lower() == "true"
 
     try:
         # Save uploaded files
@@ -261,9 +334,17 @@ async def analyze_combined_endpoint(
         curriculum_topics = [topic["topicName"] for topic in topic_profiles]
         print(f"✓ Extracted {len(curriculum_topics)} topics")
 
-        print("📝 Step 2: Analyzing question paper...")
-        qpaper_result = analyze_qpaper_from_pdf(
-            qpaper_filepath, curriculum_topics)
+        # Choose analysis method based on useImageMode parameter
+        if use_vision:
+            print("🖼️  Step 2: Analyzing question paper using VISION MODE (images)...")
+            qpaper_result = analyze_qpaper_from_pdf_images(
+                qpaper_filepath, curriculum_topics
+            )
+        else:
+            print("📝 Step 2: Analyzing question paper using TEXT MODE...")
+            qpaper_result = analyze_qpaper_from_pdf(
+                qpaper_filepath, curriculum_topics
+            )
 
         if qpaper_result.get("status") == "error":
             raise HTTPException(
@@ -274,6 +355,12 @@ async def analyze_combined_endpoint(
         print("💡 Step 3: Generating insights...")
         analysis = analyze_coverage(curriculum_result, qpaper_result)
         insights = generate_insights(analysis)
+
+        # Log exam type detection
+        exam_type = analysis.get("examType", "Comprehensive")
+        exam_scope = analysis.get("examScope", "")
+        print(
+            f"✓ Detected exam type: {exam_type}{f' ({exam_scope})' if exam_scope else ''}")
         print(
             f"✓ Analysis complete: {analysis['coveragePercentage']}% coverage\n")
 
@@ -284,8 +371,12 @@ async def analyze_combined_endpoint(
             "missedTopics": analysis["missedTopics"],
             "topicAnalysis": analysis["topicAnalysis"],
             "insights": insights,
+            "examType": exam_type,
+            "examScope": exam_scope,
+            "isMidSemester": analysis.get("isMidSemester", False),
             "curriculumData": curriculum_result.get("data"),
-            "questionPaperData": qpaper_result.get("data")
+            "questionPaperData": qpaper_result.get("data"),
+            "analysisMode": "vision" if use_vision else "text"
         }
 
     except HTTPException:

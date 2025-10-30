@@ -2,6 +2,31 @@
 
 ---
 
+### **CRITICAL: Exam Type Detection**
+
+Before analyzing questions, you MUST identify the exam type by looking for these indicators in the document:
+
+**Mid-Semester / Mid-Term Indicators:**
+
+- Text containing: "Mid-Sem", "Mid Sem", "Midsem", "Mid-Semester", "Mid-Term", "Midterm", "Mid Term"
+- Text containing: "T1", "Test 1", "First Test"
+- Syllabus scope indicators: "Units 1-3", "Chapters 1-5", "First Half", "Modules 1-2"
+
+**Comprehensive / Final Exam Indicators:**
+
+- Text containing: "Comprehensive", "Compre", "Final Exam", "Final Examination", "End-Semester", "End Sem"
+- Text containing: "T2", "Test 2", "Second Test"
+- Syllabus scope indicators: "All Units", "Complete Syllabus", "Entire Course", "Full Syllabus"
+
+**Default:** If no clear indicator is found, assume **"Comprehensive"**
+
+**Exam Type Rules:**
+
+- **Mid-Semester**: Typically covers 40-60% of curriculum topics. Missing topics are EXPECTED and NORMAL.
+- **Comprehensive**: Expected to cover 70-100% of curriculum topics. Missing topics indicate gaps.
+
+---
+
 ### **Additional Requirements**
 
 For EACH question and sub-question, you must also:
@@ -77,25 +102,30 @@ Before you write any JSON, you MUST follow this internal process:
 {{
   "status": "success",
   "data": {{
+    "examType": "Mid-Semester or Comprehensive - REQUIRED field based on detection above",
+    "examScope": "Brief description of syllabus scope if mentioned (e.g., 'Units 1-3', 'Complete Syllabus', 'Chapters 1-5'). Leave empty string if not specified.",
     "questions": [
       {{
         "questionNumber": "1",
         "questionText": "The introductory text for the entire Question 1, if any.",
         "topic": "The main topic this question is testing (e.g., 'Fourier Transform', 'DC Circuits', 'Linear Algebra'). Infer from the question content.",
         "bloomLevel": "The cognitive level from Bloom's Taxonomy: one of [Remembering, Understanding, Applying, Analyzing, Evaluating, Creating]",
+        "marks": 10,
         "imageDescription": "A single, consolidated description of the diagram for Question 1, if any. Leave as '' if none.",
         "subQuestions": [
           {{
             "part": "a",
             "text": "The full text of question 1 part a. This must not be empty.",
             "topic": "The main topic this sub-question is testing. Infer from the question content.",
-            "bloomLevel": "The cognitive level from Bloom's Taxonomy for this sub-question"
+            "bloomLevel": "The cognitive level from Bloom's Taxonomy for this sub-question",
+            "marks": 5
           }},
           {{
             "part": "b",
             "text": "The full text of question 1 part b. This must not be empty.",
             "topic": "The main topic this sub-question is testing. Infer from the question content.",
-            "bloomLevel": "The cognitive level from Bloom's Taxonomy for this sub-question"
+            "bloomLevel": "The cognitive level from Bloom's Taxonomy for this sub-question",
+            "marks": 5
           }}
         ]
       }}

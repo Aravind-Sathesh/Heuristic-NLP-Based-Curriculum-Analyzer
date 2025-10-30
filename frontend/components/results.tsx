@@ -93,6 +93,32 @@ export default function Results({ isLoading, error, results }: ResultsProps) {
 
   return (
     <Card className='bg-white rounded-lg shadow-md p-6 border border-blue-100'>
+      {/* Exam Type Badge */}
+      {results.examType && (
+        <div className='mb-4'>
+          <div
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${
+              results.isMidSemester
+                ? 'bg-purple-50 border-purple-300 text-purple-700'
+                : 'bg-blue-50 border-blue-300 text-blue-700'
+            }`}
+          >
+            <Info className='w-4 h-4' />
+            <div>
+              <span className='font-semibold'>{results.examType}</span>
+              {results.examScope && (
+                <span className='text-sm ml-2'>• {results.examScope}</span>
+              )}
+            </div>
+          </div>
+          <p className='text-xs text-gray-600 mt-2'>
+            {results.isMidSemester
+              ? 'Mid-semester exams typically cover 40-60% of curriculum topics. Partial coverage is expected and normal.'
+              : 'Comprehensive exams are expected to cover 70-100% of curriculum topics for complete assessment.'}
+          </p>
+        </div>
+      )}
+
       {/* Coverage Score */}
       <div
         className={`rounded-lg p-6 border-2 ${getCoverageBgColor(

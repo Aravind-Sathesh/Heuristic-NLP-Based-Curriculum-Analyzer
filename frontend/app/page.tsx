@@ -9,6 +9,7 @@ import type { AnalysisResults } from '@/types/api';
 export default function Home() {
   const [handoutFile, setHandoutFile] = useState<File | null>(null);
   const [questionFile, setQuestionFile] = useState<File | null>(null);
+  const [useImageMode, setUseImageMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<AnalysisResults | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +25,7 @@ export default function Home() {
       const formData = new FormData();
       formData.append('handout', handoutFile);
       formData.append('question', questionFile);
+      formData.append('useImageMode', useImageMode.toString());
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -56,6 +58,8 @@ export default function Home() {
           onAnalyze={handleAnalyze}
           isLoading={isLoading}
           isDisabled={!handoutFile || !questionFile}
+          useImageMode={useImageMode}
+          onImageModeChange={setUseImageMode}
         />
         <Results isLoading={isLoading} error={error} results={results} />
       </div>

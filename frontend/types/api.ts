@@ -57,6 +57,10 @@ export interface AnalysisResults {
   insights: Insights;
   curriculumData?: CurriculumAnalysisData;
   questionPaperData?: QuestionPaperAnalysisData;
+  analysisMode?: 'text' | 'vision'; // New field to indicate which analysis mode was used
+  examType?: string; // "Mid-Semester" or "Comprehensive"
+  examScope?: string; // Description of syllabus scope (e.g., "Units 1-3")
+  isMidSemester?: boolean; // Boolean flag for easier conditional logic
 }
 
 export interface AnalysisError {

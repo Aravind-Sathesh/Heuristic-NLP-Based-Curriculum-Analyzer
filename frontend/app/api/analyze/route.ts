@@ -5,6 +5,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const handout = formData.get('handout') as File;
     const question = formData.get('question') as File;
+    const useImageMode = formData.get('useImageMode') as string;
 
     if (!handout || !question) {
       return NextResponse.json(
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     const backendFormData = new FormData();
     backendFormData.append('curriculum', handout);
     backendFormData.append('questionPaper', question);
+    backendFormData.append('useImageMode', useImageMode || 'false');
 
     // Call the backend API
     const response = await fetch(`${backendUrl}/api/analyze`, {
