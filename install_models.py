@@ -61,11 +61,11 @@ VERSION: 2
     """
     with open(LOCAL_CONFIG, "w") as f:
         f.write(config_content.strip())
-    print("✅ Config file created.")
+    print(" Config file created.")
 
     # B. Download Weights (If missing)
     if not os.path.exists(LOCAL_WEIGHTS):
-        print("⬇️  Downloading Weights (approx 330MB)...")
+        print("Downloading Weights (approx 330MB)...")
         # Use torch's robust downloader
         url = "https://www.dropbox.com/s/dgy9c10wykk4lq4/model_final.pth?dl=1"
         torch.hub.download_url_to_file(url, LOCAL_WEIGHTS)
@@ -80,9 +80,9 @@ VERSION: 2
             # Force CPU for LayoutParser on Mac
             extra_config=["MODEL.DEVICE", "cpu"]
         )
-        print("✅ LayoutParser: READY (Loaded from local files)")
+        print(" LayoutParser: READY (Loaded from local files)")
     except Exception as e:
-        print(f"❌ LayoutParser Failed: {e}")
+        print(f" LayoutParser Failed: {e}")
 
 # --- 2. FLORENCE-2 SETUP (WITH PATCH) ---
 
@@ -119,9 +119,9 @@ def setup_florence():
                 trust_remote_code=True
             )
 
-        print("✅ Florence-2: READY")
+        print(" Florence-2: READY")
     except Exception as e:
-        print(f"❌ Florence-2 Failed: {e}")
+        print(f" Florence-2 Failed: {e}")
 
 
 if __name__ == "__main__":
