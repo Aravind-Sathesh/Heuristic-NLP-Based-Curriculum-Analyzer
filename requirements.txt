@@ -1,0 +1,23 @@
+# Core
+streamlit
+numpy
+pandas
+
+# PDF & Image
+pdf2image
+pytesseract
+opencv-python-headless
+pillow
+
+# AI - Layout & OCR
+layoutparser[ocr]
+
+# AI - NLP & Embeddings
+spacy
+sentence-transformers
+rank_bm25
+
+# AI - Vision (Florence-2)
+transformers
+einops
+timm

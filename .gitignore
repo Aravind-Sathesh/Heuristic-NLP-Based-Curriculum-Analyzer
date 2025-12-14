@@ -1,0 +1,21 @@
+cat <<EOF > .gitignore
+# System & Environment
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Data & Models (Too large for Git)
+data/
+src/models/
+*.pth
+*.bin
+*.safetensors
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs
+*.log
+EOF
