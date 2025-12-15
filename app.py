@@ -1,133 +1,88 @@
 import streamlit as st
-import numpy as np
-import cv2
-from PIL import Image
-import tempfile
-import os
-from src.parser.layout import parse_pdf
-from src.parser.ocr import extract_text_from_layout
-from src.logic.blooms import get_bloom_level
+import pandas as pd
+from src.parser.syllabus_parser import pdf_to_markdown
+from src.logic.structured import extract_structured_syllabus
+from src.parser.exam_parser import parse_exam_pdf
+from src.logic.matcher import match_questions_to_syllabus
 
+st.set_page_config(layout="wide", page_title="Curriculum Analyzer")
+st.title("AI Curriculum & Exam Analyzer")
 
-def draw_layout_boxes(image_np, layout):
-    """Draws bounding boxes using OpenCV."""
-    img_copy = image_np.copy()
+col1, col2 = st.columns(2)
+syllabus_file = col1.file_uploader("Upload Syllabus (PDF)", type=["pdf"])
+exam_file = col2.file_uploader("Upload Exam Paper (PDF)", type=["pdf"])
 
-    colors = {
-        "Text": (0, 255, 0),
-        "Title": (255, 0, 0),
-        "List": (0, 255, 255),
-        "Table": (255, 0, 255),
-        "Figure": (0, 0, 255)
-    }
+if syllabus_file and exam_file:
+    if st.button("Analyze", type="primary"):
 
-    for block in layout:
-        coords = np.array(block.coordinates).astype(int)
-        x1, y1, x2, y2 = coords
+        with st.status("Analyzing Syllabus...", expanded=True) as status:
+            s_path = f"data/temp/{syllabus_file.name}"
+            with open(s_path, "wb") as f:
+                f.write(syllabus_file.getbuffer())
 
-        color = colors.get(block.type, (200, 200, 200))
-        cv2.rectangle(img_copy, (x1, y1), (x2, y2), color, 2)
+            md_text = pdf_to_markdown(s_path)
+            syllabus_struct = extract_structured_syllabus(md_text)
 
-        label = f"{block.type} ({block.score:.2f})"
-        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        cv2.rectangle(img_copy, (x1, y1 - 20), (x1 + w, y1), color, -1)
-        cv2.putText(img_copy, label, (x1, y1 - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            st.success(
+                f"Extracted {len(syllabus_struct)} topics with Bloom levels.")
 
-    return img_copy
+            with st.expander("View Extracted Topics"):
+                st.dataframe(syllabus_struct)
 
+            status.update(label="Syllabus Ready", state="complete")
 
-st.set_page_config(layout="wide", page_title="Layout Parser Debug")
+        with st.status("Scanning Exam...", expanded=True) as status:
+            e_path = f"data/temp/{exam_file.name}"
+            with open(e_path, "wb") as f:
+                f.write(exam_file.getbuffer())
 
-st.title("Local Layout Parser Debugger")
-st.warning("Running on Local CPU (Mac Optimized)")
+            exam_questions = parse_exam_pdf(e_path)
+            st.write(f"Found {len(exam_questions)} questions.")
 
-uploaded_file = st.file_uploader("Upload a PDF (Exam or Syllabus)", type="pdf")
+            with st.expander("View Extracted Questions"):
+                for i, q in enumerate(exam_questions):
+                    st.text_area(f"Question {i+1}", q['text'], height=100)
 
-if uploaded_file:
-    with st.spinner("Processing PDF..."):
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(uploaded_file.read())
-            tmp_path = tmp_file.name
+            status.update(label="Exam Ready", state="complete")
 
-        try:
-            results = parse_pdf(tmp_path)
-            st.success(f"Processed {len(results)} pages.")
+        st.divider()
 
-            for page in results:
-                st.markdown(f"### Page {page['page_num']}")
-                col1, col2 = st.columns([1, 1])
+        if syllabus_struct:
+            results = match_questions_to_syllabus(
+                syllabus_struct, exam_questions)
 
-                img = page['image']
-                layout = page['layout']
+            if results:
+                df = pd.DataFrame(results)
 
-                with col1:
-                    if len(layout) > 0:
-                        viz_img = draw_layout_boxes(img, layout)
-                        st.image(Image.fromarray(viz_img),
-                                 use_container_width=True)
-                    else:
-                        st.warning("No layout blocks detected")
-                        st.image(img, use_container_width=True)
+                def highlight_audit(val):
+                    if 'Aligned' in val:
+                        return 'color: #4caf50; font-weight: bold'
+                    if 'Too Hard' in val:
+                        return 'color: #f44336; font-weight: bold'
+                    if 'Too Easy' in val:
+                        return 'color: #ff9800; font-weight: bold'
+                    return ''
 
-                with col2:
-                    st.subheader("Analysis")
-                    with st.spinner("Reading text..."):
-                        text_blocks = extract_text_from_layout(img, layout)
+                def highlight_status(val):
+                    if 'Gap' in val:
+                        return 'background-color: #ffebee; color: #c62828'
+                    return ''
 
-                    for block in text_blocks:
-                        if block['type'] == 'Title':
-                            st.markdown(f"#### {block['text']}")
-
-                        elif block['type'] == 'Figure':
-                            st.info(f"Figure Detected: {block['text']}")
-
-                        elif block['type'] == 'TableContent':
-                            st.markdown(f"""
-                            <div style="background-color: #f0f0f0; padding: 5px 10px; margin-bottom: 5px; font-family: monospace; font-size: 0.8em; color: #555;">
-                                📅 Table Data: {block['text'][:50]}...
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                        elif block['type'] == 'Text':
-                            level, score, verb = get_bloom_level(block['text'])
-
-                            if level == "Metadata":
-                                st.markdown(f"""
-                                <div style="color: #bbb; font-size: 0.7em; margin-bottom: 5px;">
-                                    <em>Metadata: {block['text'][:50]}...</em>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                            elif level == "Data":
-                                st.markdown(f"""
-                                <div style="background-color: #f8f9fa; padding: 5px; border-radius: 4px; border: 1px solid #eee; margin-bottom: 5px; font-size: 0.8em; color: #666;">
-                                    Table Data: {block['text']}
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                            else:
-                                color = "gray"
-                                if score >= 5:
-                                    color = "#ff4b4b"
-                                elif score >= 3:
-                                    color = "#ffa500"
-                                elif score > 0:
-                                    color = "#09ab3b"
-
-                                st.markdown(f"""
-                                <div style="border-left: 4px solid {color}; padding-left: 10px; margin-bottom: 10px;">
-                                    <p style="margin: 0; font-weight: bold;">{block['text']}</p>
-                                    <span style="font-size: 0.8em; color: {color};">
-                                        Blooms: <strong>{level}</strong> (Trigger: '{verb}')
-                                    </span>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-        except Exception as e:
-            st.error(f"Error: {e}")
-            import traceback
-            st.code(traceback.format_exc())
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                st.subheader("Analyze Report")
+                st.dataframe(
+                    df.style.map(highlight_audit, subset=['bloom_audit'])
+                    .map(highlight_status, subset=['match_status']),
+                    width="stretch",
+                    column_config={
+                        "question": st.column_config.TextColumn("Exam Question", width="medium"),
+                        "matched_topic": st.column_config.TextColumn("Matched Topic", width="small"),
+                        "source_segment": "Source",
+                        "match_status": st.column_config.TextColumn("Alignment", width="small"),
+                        "q_bloom": "Q Level",
+                        "s_bloom": "S Level",
+                        "bloom_audit": "Bloom Check"
+                    },
+                    hide_index=True
+                )
+            else:
+                st.warning("No matches found.")

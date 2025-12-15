@@ -1,23 +1,25 @@
-# Core
+# Core UI & Data
 streamlit
-numpy
 pandas
+numpy
+scipy
 
-# PDF & Image
-pdf2image
-pytesseract
-opencv-python-headless
-pillow
-
-# AI - Layout & OCR
-layoutparser[ocr]
-
-# AI - NLP & Embeddings
-spacy
-sentence-transformers
-rank_bm25
-
-# AI - Vision (Florence-2)
+# Machine Learning Core
+torch
+torchvision
+accelerate
 transformers
+
+# Syllabus Parsing (PDF -> Markdown)
+pymupdf4llm
+
+# Exam Parsing (Layout & Vision)
+ultralytics
 einops
 timm
+pillow
+
+# Logic & Matching
+lm-format-enforcer
+sentence-transformers
+spacy
