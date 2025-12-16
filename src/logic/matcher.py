@@ -1,88 +1,144 @@
-from src.utils import load_sbert_model
-from src.logic.bloom_classifier import get_bloom_level, BLOOM_LEVELS
-from sentence_transformers import util
+"""Question-to-syllabus matching using hybrid semantic and keyword scoring."""
+
 import torch
 import re
+import spacy
+from sentence_transformers import util
+from src.utils import load_sbert_model
+from src.logic.bloom_classifier import get_bloom_level, BLOOM_LEVELS_INT
+
+STRONG_MATCH_THRESHOLD = 0.48
+PARTIAL_MATCH_THRESHOLD = 0.35
+
+try:
+    NLP = spacy.load("en_core_web_sm")
+except OSError:
+    from spacy.cli import download
+    download("en_core_web_sm")
+    NLP = spacy.load("en_core_web_sm")
 
 
 def clean_text_for_embedding(text):
+    """Standardizes text for SBERT processing."""
     if not text:
         return ""
     text = re.sub(r'<[^>]+>', ' ', text)
-    text = re.sub(r'[|\-•*]{2,}', ' ', text)
+    text = re.sub(r'[|\-•*_]{2,}', ' ', text)
     text = text.replace('|', ' ').replace('*', '')
     text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    return text.lower()
+
+
+def calculate_keyword_score_with_specificity(question_text, topic_text):
+    """Calculates keyword score and specificity using POS tagging."""
+    question_tokens = set(question_text.lower().split())
+    doc = NLP(topic_text)
+
+    core_topic_tokens = {
+        token.lemma_.lower() for token in doc
+        if token.pos_ in {'NOUN', 'PROPN', 'ADJ', 'NUM'}
+    }
+
+    specificity = len(core_topic_tokens)
+    if specificity == 0:
+        return 0.0, 0
+
+    common_tokens = question_tokens.intersection(core_topic_tokens)
+    score = len(common_tokens) / specificity
+
+    return score, specificity
+
+
+def audit_bloom_alignment(q_score, s_score):
+    """Determines if question cognitive load matches syllabus level."""
+    diff = q_score - s_score
+    if diff == 0:
+        return "Perfect Alignment", "Green"
+    elif diff == 1:
+        return "Challenging (Acceptable)", "Green"
+    elif diff == -1:
+        return "Basic (Acceptable)", "Green"
+    elif diff > 1:
+        return f"Too Hard (Level {q_score} > {s_score})", "Red"
+    elif diff < -2:
+        return f"Under-testing (Level {q_score} << {s_score})", "Yellow"
+    else:  # Covers diff == -2
+        return "Easier than Syllabus", "Green"
 
 
 def match_questions_to_syllabus(syllabus_data, exam_questions):
-    """Match exam questions to syllabus topics using semantic similarity."""
+    """Links exam questions to syllabus topics using hybrid scoring."""
     model = load_sbert_model()
 
-    doc_embeddings = []
-    doc_metadata = []
-
-    # Index Syllabus
+    syllabus_texts = []
+    syllabus_meta = []
     for item in syllabus_data:
         topic = item['topic']
-        bloom = item['bloom_level']
-
-        clean_topic = clean_text_for_embedding(topic)
-        if len(clean_topic) < 3:
+        if len(topic) < 3:
             continue
+        syllabus_texts.append(topic)
+        syllabus_meta.append(item)
 
-        doc_embeddings.append(model.encode(
-            clean_topic, convert_to_tensor=True))
-        doc_metadata.append({"topic": clean_topic, "bloom_level": bloom})
-
-    if not doc_embeddings:
+    if not syllabus_texts:
         return []
 
-    db_matrix = torch.stack(doc_embeddings)
+    db_embeddings_clean = [clean_text_for_embedding(t) for t in syllabus_texts]
+    db_embeddings = model.encode(db_embeddings_clean, convert_to_tensor=True)
+
     results = []
 
     for q in exam_questions:
-        q_text = clean_text_for_embedding(q['text'])
-        if len(q_text) < 15 or "page" in q_text.lower()[:10]:
+        q_raw = q.get('text', '')
+        q_clean = clean_text_for_embedding(q_raw)
+        if len(q_clean) < 10 or "page" in q_clean[:10]:
             continue
 
-        q_bloom, q_score, q_verb = get_bloom_level(q_text)
-
-        if q_score == -1:
+        q_bloom_label, q_bloom_score, _ = get_bloom_level(q_raw)
+        if q_bloom_score == -1:
             continue
 
-        q_emb = model.encode(q_text, convert_to_tensor=True)
-        scores = util.cos_sim(q_emb, db_matrix)[0]
-        best_score, best_idx = torch.max(scores, dim=0)
+        q_emb = model.encode(q_clean, convert_to_tensor=True)
+        cosine_scores = util.cos_sim(q_emb, db_embeddings)[0]
 
-        bs = best_score.item()
-        meta = doc_metadata[best_idx.item()]
+        final_scores = []
+        for idx, vec_s in enumerate(cosine_scores):
+            vec_s = vec_s.item()
+            kw_s, specificity = calculate_keyword_score_with_specificity(
+                q_clean, syllabus_texts[idx])
 
-        s_bloom = meta['bloom_level']
-        s_score = BLOOM_LEVELS.get(s_bloom, 2)
+            base_score = (vec_s * 0.8) + (kw_s * 0.2)
+            specificity_bonus = (kw_s * (specificity / 10.0))
+            combined_score = base_score + specificity_bonus
+            final_scores.append(combined_score)
 
-        status = "Gap / Unmatched"
-        if bs > 0.45:
-            status = "Strong Match"
-        elif bs > 0.32:
-            status = "Partial Match"
+        final_scores = torch.tensor(final_scores)
+        best_score, best_idx = torch.max(final_scores, dim=0)
+        bs = min(best_score.item(), 1.0)
 
-        bloom_audit = "N/A"
-        if "Match" in status:
-            if q_score > s_score:
-                bloom_audit = f"Too Hard ({q_bloom} > {s_bloom})"
-            elif q_score < s_score:
-                bloom_audit = f"Too Easy ({q_bloom} < {s_bloom})"
-            else:
-                bloom_audit = "Aligned"
+        matched_item = syllabus_meta[best_idx.item()]
+        s_bloom_label = matched_item['bloom_level']
+        s_bloom_score = BLOOM_LEVELS_INT.get(s_bloom_label, 2)
+
+        match_status = "Gap / Unmatched"
+        if bs > STRONG_MATCH_THRESHOLD:
+            match_status = "Strong Match"
+        elif bs > PARTIAL_MATCH_THRESHOLD:
+            match_status = "Partial Match"
+
+        if "Match" in match_status:
+            audit_msg, color_code = audit_bloom_alignment(
+                q_bloom_score, s_bloom_score)
+        else:
+            audit_msg = "Topic not found in Syllabus"
 
         results.append({
-            "question": q_text[:100] + "...",
-            "matched_topic": meta['topic'],
-            "match_status": status,
-            "q_bloom": q_bloom,
-            "s_bloom": s_bloom,
-            "bloom_audit": bloom_audit
+            "question_snippet": q_raw[:150] + "..." if len(q_raw) > 150 else q_raw,
+            "matched_topic": matched_item['topic'],
+            "similarity_score": round(bs, 2),
+            "match_status": match_status,
+            "question_bloom": f"{q_bloom_label} ({q_bloom_score})",
+            "syllabus_bloom": f"{s_bloom_label} ({s_bloom_score})",
+            "bloom_audit": audit_msg
         })
 
     return results
