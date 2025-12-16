@@ -1,117 +1,248 @@
-import torch
-import json
-from pydantic import BaseModel, Field
-from typing import List, Literal
-from lmformatenforcer import JsonSchemaParser
-from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
-from src.utils import get_slm
+"""Syllabus extraction using heuristic filtering and Bloom classification."""
+
+import re
+from difflib import SequenceMatcher
+from src.logic.bloom_classifier import get_bloom_level
 
 
-class SyllabusItem(BaseModel):
-    topic: str = Field(...,
-                       description="The specific technical concept or algorithm.")
-    bloom_level: Literal["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"] = Field(
-        ..., description="The cognitive level implied by the verb used for this specific topic.")
+def is_bibliographic_junk(text):
+    """Detects book citations and bibliographic content."""
+    t = text.lower().strip()
+
+    pub_keywords = [
+        'springer', 'oreilly', 'o\'reilly', 'mcgraw', 'pearson', 'wiley',
+        'university press', 'cambridge', 'oxford', 'edition', 'vol.',
+        'pp.', 'isbn', 'handbook', 'publishing', 'editors'
+    ]
+
+    if any(k in t for k in pub_keywords):
+        return True
+
+    if re.search(r'[\(\s](19|20)\d{2}[\)\.\s]*$', t):
+        if t.count(',') > 0 or len(t.split()) < 5:
+            return True
+
+    if re.match(r'^[tr]\d+\s+[a-z]', t, re.IGNORECASE):
+        return True
+
+    if re.match(r'^[\d\.\-\s,]+$', t):
+        return True
+
+    return False
 
 
-class SyllabusExtraction(BaseModel):
-    items: List[SyllabusItem]
+def is_header_or_separator(text):
+    """Detects section headers and separator lines."""
+    t = text.lower().strip()
+
+    if re.match(r'^[\-\=_]{3,}$', t):
+        return True
+
+    headers = [
+        'scope', 'objectives', 'outcomes', 'evaluation', 'grading',
+        'lecture plan', 'course plan', 'text books', 'reference books',
+        'references', 'reading list', 'textbook', 'syllabus',
+        'evaluation scheme', 'chamber consultation'
+    ]
+
+    if any(h in t for h in headers):
+        if len(t.split()) < 6:
+            return True
+
+    return False
 
 
-def get_sliding_windows(text, window_size=3000, overlap=500):
-    windows = []
-    start = 0
-    text_len = len(text)
-    while start < text_len:
-        end = start + window_size
-        if end < text_len:
-            last_newline = text.rfind('\n', start, end)
-            if last_newline != -1 and last_newline > start + (window_size // 2):
-                end = last_newline
-        windows.append(text[start:end])
-        if end >= text_len:
-            break
-        start = end - overlap
-    return windows
+def is_descriptive_sentence(text):
+    """Detects descriptive sentences rather than topic listings."""
+    t = text.lower()
+
+    starters = [
+        'this course', 'the course', 'it empowers', 'given that',
+        'the primary objective', 'in this', 'students will',
+        'to test run', 'practical sessions', 'lecture plan',
+        'in addition to'
+    ]
+    if any(t.startswith(s) for s in starters):
+        return True
+
+    if len(t.split()) > 15:
+        if any(w in t for w in ['aims', 'provides', 'introduces', 'designed', 'integration']):
+            return True
+
+    return False
 
 
-def extract_topics_from_chunk(text_chunk, model, tokenizer):
-    parser = JsonSchemaParser(SyllabusExtraction.model_json_schema())
-    prefix_function = build_transformers_prefix_allowed_tokens_fn(
-        tokenizer, parser)
+def get_junk_density_score(text):
+    """Calculates probability of administrative noise."""
+    t = text.lower()
+    score = 0.0
 
-    prompt = f"""
-Analyze the course syllabus text and extract specific technical topics with their Bloom's Taxonomy level.
+    admin_roots = [
+        'instruct', 'prof', 'faculty', 'evaluat', 'grad', 'weight',
+        'semester', 'exam', 'book', 'sched', 'plan', 'objectiv',
+        'outcom', 'honest', 'policy', 'date', 'page', 'notic',
+        'consultation', 'chamber', 'scheme', 'scope'
+    ]
 
-Level determination:
-- Define, List, State -> Remember
-- Explain, Describe, Discuss -> Understand
-- Calculate, Apply, Implement -> Apply
-- Analyze, Compare, Differentiate -> Analyze
-- Evaluate, Justify -> Evaluate
-- Design, Create, Develop -> Create
+    if any(root in t for root in admin_roots):
+        score += 0.4
 
-Ignore administrative details. Be specific with topic names.
+    if '---' in t or '|' in t:
+        score += 0.5
 
-Text:
-{text_chunk[:2500]}
+    ref_count = len(re.findall(r'\b[TR]\d+\b', text))
+    if ref_count > 0:
+        if len(t) < 15:
+            score += 0.4
 
-JSON Output:
-"""
+    return score
 
-    messages = [{"role": "user", "content": prompt}]
-    text_input = tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True)
-    inputs = tokenizer([text_input], return_tensors="pt").to(model.device)
 
-    with torch.no_grad():
-        generated_ids = model.generate(
-            **inputs,
-            max_new_tokens=1024,  # More tokens needed for detailed JSON
-            do_sample=False,
-            prefix_allowed_tokens_fn=prefix_function
-        )
+def heuristic_line_cleaner(text):
+    """Cleans glued tokens, reference codes, and noise."""
+    t = text.strip()
 
-    output = tokenizer.decode(generated_ids[0][len(
-        inputs.input_ids[0]):], skip_special_tokens=True)
+    t = re.sub(r'\s*\([^)]*\)\s*', ' ', t)
+    t = re.sub(r'(?<=\d)(?=[A-Z])', ' ', t)
+    t = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', t)
+    t = re.sub(r'(?<=[a-z])\.(?=[TR]\d)', ' ', t, flags=re.IGNORECASE)
+    t = t.replace('br', ' ')
 
-    try:
-        data = json.loads(output)
-        return data.get("items", [])
-    except json.JSONDecodeError:
+    t = re.sub(r'^[\d\.\-\)\*\•\>]+\s+', '', t)
+    t = re.sub(r'[\s\.,]+(T|R|Ch|Vol|Ref)\.?\s*[\d\.\-\,]*$',
+               '', t, flags=re.IGNORECASE)
+    t = re.sub(r'[\s,]+etc\.?$', '', t, flags=re.IGNORECASE)
+
+    fluff_patterns = [
+        r'^(to|the)\s+(understand|get|know|learn|explore|introduce|build|test|identify|analyze)\s+(an|a|the)?',
+        r'^introduction\s+to\s+',
+        r'^overview\s+of\s+',
+        r'^basics\s+of\s+',
+        r'^foundations?\s+(of|in)\s+',
+        r'^principles\s+of\s+',
+        r'^methods?\s+(of|in)\s+',
+        r'^concepts?\s+(of|in)\s+'
+    ]
+    for p in fluff_patterns:
+        t = re.sub(p, '', t, flags=re.IGNORECASE)
+
+    t = re.sub(r'[^\w\s\-\.,]', '', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    t = t.strip('.,- ')
+
+    return t
+
+
+def get_candidate_lines(text):
+    """Extracts text blocks and splits by boundaries like newlines and periods."""
+    # 1. Try to isolate the main syllabus content between common headers
+    meat_pattern = r'(?:Objectives|Outcomes|Scope|Plan|Syllabus|Topics|Schedule)[\s\S]*?(?=\n\s*(?:Evaluation|Grading|Text\s*Book|Reference|Reading|Comprehensive))'
+    match = re.search(meat_pattern, text, re.IGNORECASE)
+    target_text = match.group(0) if match else text
+
+    # 2. Normalize newlines to a unique token to split on later
+    normalized = target_text.replace('\n', ' <NL> ')
+
+    # 3. Split by sentence-ending punctuation, avoiding abbreviations
+    chunks = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', normalized)
+
+    candidates = []
+    for chunk in chunks:
+        # Now split by the newline token
+        lines = chunk.split('<NL>')
+        for line in lines:
+            clean = line.strip()
+            if len(clean) > 3:  # Filter out empty or very short lines
+                candidates.append(clean)
+
+    return candidates
+
+
+def deduplicate_fuzzy(entries):
+    """Clusters similar topics."""
+    if not entries:
         return []
+
+    sorted_entries = sorted(
+        entries, key=lambda x: len(x['topic']), reverse=True)
+
+    final_list = []
+    processed_indices = set()
+
+    bloom_rank_map = {"Remember": 1, "Understand": 2,
+                      "Apply": 3, "Analyze": 4, "Evaluate": 5, "Create": 6}
+
+    for i in range(len(sorted_entries)):
+        if i in processed_indices:
+            continue
+
+        current = sorted_entries[i]
+
+        for j in range(i + 1, len(sorted_entries)):
+            if j in processed_indices:
+                continue
+
+            candidate = sorted_entries[j]
+            current_topic_lower = current['topic'].lower()
+            candidate_topic_lower = candidate['topic'].lower()
+
+            ratio = SequenceMatcher(
+                None, current_topic_lower, candidate_topic_lower).ratio()
+            is_substring = candidate_topic_lower in current_topic_lower
+
+            if ratio > 0.8 or is_substring:
+                curr_rank = bloom_rank_map.get(current['bloom_level'], 0)
+                cand_rank = bloom_rank_map.get(candidate['bloom_level'], 0)
+
+                if cand_rank > curr_rank:
+                    current = candidate
+
+                processed_indices.add(j)
+
+        final_list.append(current)
+
+    return final_list
 
 
 def extract_structured_syllabus(markdown_text):
-    """Extract structured topics with Bloom levels from syllabus text."""
-    windows = get_sliding_windows(markdown_text)
+    """Main extraction pipeline."""
+    raw_lines = get_candidate_lines(markdown_text)
+    extracted_data = []
 
-    model, tokenizer = get_slm()
-    unique_topics = {}
+    for line in raw_lines:
+        if is_header_or_separator(line):
+            continue
+        if get_junk_density_score(line) > 0.5:
+            continue
+        if is_bibliographic_junk(line):
+            continue
+        if is_descriptive_sentence(line):
+            continue
 
-    bloom_order = {"Remember": 1, "Understand": 2,
-                   "Apply": 3, "Analyze": 4, "Evaluate": 5, "Create": 6}
+        cleaned_line = heuristic_line_cleaner(line)
 
-    for i, window in enumerate(windows):
-        items = extract_topics_from_chunk(window, model, tokenizer)
+        if len(cleaned_line) < 5:
+            continue
 
-        for item in items:
-            topic_clean = item['topic'].strip()
-            bloom = item['bloom_level']
+        potential_topics = re.split(r'[;,]|\s+and\s+', cleaned_line)
+        level, score, _ = get_bloom_level(line)
+        if level in ["Metadata", "Unknown"] or score < 1:
+            continue
 
-            if len(topic_clean) < 3 or "..." in topic_clean:
+        for topic in potential_topics:
+            topic_final = topic.strip()
+            if len(topic_final) < 3:
+                continue
+            if topic_final[0].islower() and topic_final.split()[0] not in ['e.g.']:
+                continue
+            if re.match(r'^(or|of|the|in|with)\s+', topic_final, re.IGNORECASE):
                 continue
 
-            if topic_clean.lower() in unique_topics:
-                existing_bloom = unique_topics[topic_clean.lower(
-                )]['bloom_level']
-                if bloom_order[bloom] > bloom_order[existing_bloom]:
-                    unique_topics[topic_clean.lower()]['bloom_level'] = bloom
-            else:
-                unique_topics[topic_clean.lower()] = {
-                    "topic": topic_clean,
-                    "bloom_level": bloom,
-                    "source_segment": f"Segment {i+1}"
-                }
+            extracted_data.append({
+                "topic": topic_final,
+                "bloom_level": level
+            })
 
-    return list(unique_topics.values())
+    final_output = deduplicate_fuzzy(extracted_data)
+
+    return final_output
