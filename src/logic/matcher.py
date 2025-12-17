@@ -53,17 +53,15 @@ def audit_bloom_alignment(q_score, s_score):
     """Determines if question cognitive load matches syllabus level."""
     diff = q_score - s_score
     if diff == 0:
-        return "Perfect Alignment", "Green"
-    elif diff == 1:
-        return "Challenging (Acceptable)", "Green"
-    elif diff == -1:
-        return "Basic (Acceptable)", "Green"
+        return "Perfect Alignment"
+    elif diff == 1 or diff == -1:
+        return "Acceptable"
     elif diff > 1:
-        return f"Too Hard (Level {q_score} > {s_score})", "Red"
+        return "Too Hard"
     elif diff < -2:
-        return f"Under-testing (Level {q_score} << {s_score})", "Yellow"
+        return "Too Easy"
     else:  # Covers diff == -2
-        return "Easier than Syllabus", "Green"
+        return "Acceptable"
 
 
 def match_questions_to_syllabus(syllabus_data, exam_questions):
@@ -126,10 +124,10 @@ def match_questions_to_syllabus(syllabus_data, exam_questions):
             match_status = "Partial Match"
 
         if "Match" in match_status:
-            audit_msg, color_code = audit_bloom_alignment(
+            audit_msg = audit_bloom_alignment(
                 q_bloom_score, s_bloom_score)
         else:
-            audit_msg = "Topic not found in Syllabus"
+            audit_msg = "N/A"
 
         results.append({
             "question_snippet": q_raw[:150] + "..." if len(q_raw) > 150 else q_raw,
@@ -138,7 +136,7 @@ def match_questions_to_syllabus(syllabus_data, exam_questions):
             "match_status": match_status,
             "question_bloom": f"{q_bloom_label} ({q_bloom_score})",
             "syllabus_bloom": f"{s_bloom_label} ({s_bloom_score})",
-            "bloom_audit": audit_msg
+            "verdict": audit_msg
         })
 
     return results

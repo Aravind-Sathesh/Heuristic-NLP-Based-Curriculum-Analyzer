@@ -8,19 +8,6 @@ from src.logic.matcher import match_questions_to_syllabus
 st.set_page_config(layout="wide", page_title="Curriculum Analyzer")
 
 
-def simplify_bloom_audit(audit_string):
-    """Converts audit string to simple verdict."""
-    if "Too Hard" in audit_string:
-        return "Too Hard"
-    if "Under-testing" in audit_string:
-        return "Too Easy"
-    if "Acceptable" in audit_string:
-        return "Acceptable"
-    if "Perfect Alignment" in audit_string:
-        return "Perfect Alignment"
-    return "N/A"  # For unmatched questions
-
-
 def calculate_overall_score(df):
     """Calculates overall alignment percentage."""
     if df.empty:
@@ -50,7 +37,7 @@ def calculate_overall_score(df):
 
 col_title, col_info = st.columns([6, 1])
 with col_title:
-    st.title("AI Curriculum & Exam Analyzer")
+    st.title("Heuristic NLP Curriculum Analyzer")
 with col_info:
     with st.popover("Taxonomy Guide"):
         st.image("assets/taxonomy guide.png", width=300)
@@ -96,7 +83,6 @@ if syllabus_file and exam_file:
 
             if results:
                 df = pd.DataFrame(results)
-                df['verdict'] = df['bloom_audit'].apply(simplify_bloom_audit)
 
                 overall_score = calculate_overall_score(df)
                 st.subheader("Overall Alignment Score")
@@ -131,7 +117,7 @@ if syllabus_file and exam_file:
 
                 st.subheader("Alignment Report")
                 st.dataframe(
-                    df_display.style.applymap(
+                    df_display.style.map(
                         highlight_verdict, subset=['verdict']),
                     column_config={
                         "question_snippet": st.column_config.TextColumn("Exam Question", width="large"),
@@ -146,7 +132,7 @@ if syllabus_file and exam_file:
                         "verdict": "Verdict"
                     },
                     hide_index=True,
-                    use_container_width=True
+                    width='stretch'
                 )
             else:
                 st.warning("Could not generate an alignment report.")
