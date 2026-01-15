@@ -1,210 +1,102 @@
-# LLM Based Curriculum Analyzer
+# Heuristic NLP Curriculum Analyzer
 
-An intelligent system that leverages Large Language Models to analyze university curricula and question papers, providing structured insights into course content, learning outcomes, and cognitive complexity using Bloom's Taxonomy classification.
+This project is a tool designed to analyze the alignment between a course syllabus (or handout) and its corresponding exam paper. It evaluates alignment on two primary dimensions: topic coverage and the cognitive level of questions, based on Bloom's Taxonomy. The final output is an interactive report where the user can validate and override the AI's initial analysis.
 
-<div align="center">
+## How It Works
 
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)
-![Google AI](https://img.shields.io/badge/Google_AI-4285F4?style=for-the-badge&logo=google&logoColor=white)
-![PDF](https://img.shields.io/badge/PDF_Processing-FF0000?style=for-the-badge&logo=read.cv&logoColor=white)
+The system follows a five-step pipeline, orchestrated by the main application file:
 
-![PyMuPDF](https://img.shields.io/badge/PyMuPDF-40826D?style=for-the-badge&logo=pdf&logoColor=white)
-![Uvicorn](https://img.shields.io/badge/Uvicorn-FF4B4B?style=for-the-badge&logo=uvicorn&logoColor=white)
-![Pillow](https://img.shields.io/badge/Pillow-3776AB?style=for-the-badge)
+1.  **Input:** The user uploads a syllabus PDF and an exam paper PDF through the Streamlit web interface.
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)
-[![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge)](https://www.python.org/downloads/)
+2.  **Syllabus Parsing:** The syllabus PDF is converted to raw text. This text is then processed by a series of heuristic filters that clean administrative noise (e.g., grading policies, reference books) and extract a clean, structured list of individual course topics.
 
-</div>
+3.  **Exam Parsing:** The exam paper PDF is carefully parsed using a coordinate-based text extraction method. This preserves the reading order and allows a stateful algorithm to accurately group lines of text into distinct questions, even when they span multiple lines or include sub-parts.
 
----
+4.  **Bloom's Level Classification:** Both the extracted syllabus topics and the exam questions are individually analyzed to determine their cognitive level according to Bloom's Taxonomy (e.g., Remember, Apply, Analyze). This is done using a linguistic model that considers verbs, nouns, and key instructional phrases.
 
-## Features
-
-### **Intelligent Document Analysis**
-
-- **PDF Text Extraction**: Advanced text extraction from curriculum and question paper PDFs
-- **LLM-Powered Analysis**: Uses Google's Gemini AI for sophisticated content understanding
-- **Bloom's Taxonomy Classification**: Categorizes learning objectives by cognitive complexity
-
-### **Curriculum Analysis**
-
-- **Topic Consolidation**: Identifies and groups related topics into broader categories
-- **Learning Outcome Assessment**: Analyzes and validates learning objectives
-- **Cognitive Depth Profiling**: Provides percentage distribution across Bloom's taxonomy levels
-- **Complete Coverage Validation**: Ensures all syllabus content is accounted for
-
-### **Question Paper Analysis**
-
-- **Question Classification**: Categorizes questions by topic and difficulty
-- **Bloom's Level Mapping**: Maps each question to appropriate cognitive level
-- **Coverage Analysis**: Identifies curriculum coverage gaps in assessments
-
-### **RESTful API**
-
-- **FastAPI Framework**: High-performance, modern API with automatic documentation
-- **File Upload Support**: Secure PDF upload and processing
-- **CORS Enabled**: Cross-origin resource sharing for web integration
-- **Error Handling**: Comprehensive error responses and validation
-
----
-
-## Use Cases
-
-### **For Educators**
-
-- **Curriculum Design**: Analyze and improve course structure and learning outcomes
-- **Assessment Quality**: Evaluate question papers for cognitive balance and coverage
-- **Bloom's Alignment**: Ensure assessments match intended learning objectives
-- **Gap Analysis**: Identify missing topics or cognitive levels in curricula
-
-### **For Academic Administrators**
-
-- **Quality Assurance**: Standardize curriculum analysis across departments
-- **Accreditation Support**: Generate detailed reports for accreditation bodies
-- **Curriculum Mapping**: Map courses to program learning outcomes
-- **Benchmarking**: Compare curricula against educational standards
-
-### **For Researchers**
-
-- **Educational Analytics**: Study patterns in curriculum design and assessment
-- **Bloom's Taxonomy Research**: Analyze cognitive complexity trends
-- **Automated Analysis**: Scale curriculum analysis across large datasets
-- **Comparative Studies**: Compare curricula across institutions or programs
-
----
+5.  **Alignment Analysis & Reporting:** Each exam question is matched against the entire list of syllabus topics using a sophisticated hybrid scoring model. This model combines semantic similarity (from Sentence-BERT) with a linguistics-based keyword analysis (from SpaCy) that rewards specificity. The results are compiled into a report, and an overall alignment score is calculated.
 
 ## Tech Stack
 
-<div align="center">
+The application is built with a combination of a web framework for the user interface and a specialized set of NLP and PDF processing libraries for the core analysis logic.
 
-| Layer                 | Technology         | Purpose                                       |
-| --------------------- | ------------------ | --------------------------------------------- |
-| **Backend Framework** | FastAPI            | High-performance, modern Python web framework |
-| **AI/ML**             | Google Gemini AI   | Advanced language model for content analysis  |
-| **PDF Processing**    | PyMuPDF            | Robust PDF text and image extraction          |
-| **Image Processing**  | Pillow + pdf2image | PDF to image conversion and processing        |
-| **Server**            | Uvicorn            | Lightning-fast ASGI server                    |
-| **Environment**       | python-dotenv      | Environment variable management               |
-| **File Handling**     | python-multipart   | Multipart file upload support                 |
-
-</div>
-
----
+- **Python 3.9+**: The core programming language for the entire project.
+- **Streamlit**: Used to build the interactive, web-based user interface and orchestrate the analysis pipeline.
+- **spaCy (`en_core_web_sm` model)**: The engine for linguistic analysis. It performs Part-of-Speech (POS) tagging and lemmatization, which are critical for the heuristic Bloom's classifier and for identifying the core noun concepts in syllabus topics.
+- **Sentence-Transformers (`all-MiniLM-L6-v2` model)**: Used to generate the dense vector embeddings for both questions and syllabus topics. This model is the foundation of the semantic similarity scoring in the matching engine.
+- **PyMuPDF (`fitz`)**: The primary tool for parsing PDF documents. It is used for its ability to extract text along with its precise coordinates, which is essential for the `exam_parser` to accurately reconstruct the document's layout and group questions correctly.
+- **PyTorch**: Serves as the underlying deep learning framework for the `sentence-transformers` library.
 
 ## Project Structure
 
+The project is organized into several key directories and files:
+
 ```
-LLM Based Curriculum Analyzer/
-├── backend/
-│   ├── main.py                 # FastAPI application entry point
-│   ├── requirements.txt        # Python dependencies
-│   ├── .env.example           # Environment variables template
-│   ├── api/                    # API route handlers
-│   │   ├── curriculum_routes.py
-│   │   ├── qpaper_routes.py
-│   │   └── combined_routes.py # Combined analysis endpoint
-│   ├── core/                   # Core business logic
-│   │   └── analysis_logic.py
-│   ├── services/               # External service integrations
-│   │   ├── llm_service.py     # Google Gemini AI integration
-│   │   └── pdf_service.py     # PDF processing utilities
-│   ├── prompts/               # LLM prompt templates
-│   │   ├── curriculum_parser.md
-│   │   └── qpaper_parser.md
-│   └── uploads/               # Temporary file storage
-├── frontend/                   # Next.js frontend application
-│   ├── app/                    # Next.js app directory
-│   │   ├── page.tsx           # Main page component
-│   │   ├── layout.tsx         # App layout
-│   │   └── api/               # Next.js API routes
-│   │       └── analyze/       # Analysis proxy endpoint
-│   ├── components/            # React components
-│   │   ├── header.tsx
-│   │   ├── uploader.tsx
-│   │   ├── results.tsx
-│   │   └── ui/               # Shadcn UI components
-│   ├── types/                 # TypeScript type definitions
-│   │   └── api.ts            # API response types
-│   ├── .env.example          # Environment variables template
-│   ├── package.json
-│   └── tsconfig.json
-├── handout.pdf                # Project documentation
-├── README.md                  # This file
-├── LICENSE                    # Apache 2.0 license
-└── .gitignore                # Git ignore patterns
+.
+├── app.py                  # Main Streamlit application file
+├── install_models.py       # Script to download and cache ML models
+├── requirements.txt        # Project dependencies
+|
+├── data/
+│   ├── temp/               # Temporary storage for uploaded PDF files
+│   └── feedback/           # Directory for storing user feedback
+│
+├── src/
+│   ├── logic/
+│   │   ├── bloom_classifier.py  # Bloom's Taxonomy classification engine
+│   │   ├── matcher.py           # Core alignment and matching engine
+│   │   └── structured.py        # Syllabus text structuring engine
+│   │
+│   ├── parser/
+│   │   ├── exam_parser.py       # Exam PDF content extractor
+│   │   └── syllabus_parser.py   # Syllabus PDF to text converter
+│   │
+│   └── utils.py                 # Centralized model loader utility
+│
+└── assets/
+    └── taxonomy guide.png    # Image asset for the UI
 ```
 
----
+## File Breakdown
 
-## Environment Variables
+This section provides a detailed report on the role of each file in the project.
 
-### Backend (.env)
+### Core Application Files
 
-```env
-# Required
-GOOGLE_API_KEY=your_google_api_key_here
+- **`app.py`**: This is the entry point for the application. It uses the Streamlit library to create the web-based user interface, including file uploaders and buttons. It orchestrates the entire analysis pipeline by calling functions from the other modules in the correct sequence. It is responsible for displaying the final, interactive report and handling real-time updates when the user edits the Bloom's levels.
 
-# Optional
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
-```
+- **`install_models.py`**: This is a one-time setup script. Its purpose is to download and cache all the required machine learning models from online repositories like HuggingFace. Running this script ensures that the application has all the necessary model files available locally before it is run for the first time.
 
-### Frontend (.env.local)
+### `src/parser/` - PDF Parsing and Text Extraction
 
-```env
-# Required
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-```
+- **`syllabus_parser.py`**: A simple module that handles the initial conversion of the syllabus PDF into raw, unstructured Markdown or text, preparing it for the structuring logic.
+- **`exam_parser.py`**: This module is dedicated to parsing the exam paper PDF. It uses the `fitz` (PyMuPDF) library to extract text along with its coordinates on the page. This allows it to sort the text in the correct reading order, filter out common headers and footers, and use a stateful grouping algorithm to accurately segment the document into a list of individual questions.
 
----
+### `src/logic/` - Analysis and Intelligence
 
-## Deployment
+- **`structured.py`**: This module takes the raw text from the syllabus and transforms it into a clean, structured list of topics. It contains a series of heuristic functions that act as filters to identify and remove irrelevant content like bibliographic information, grading schemes, and descriptive sentences.
+- **`bloom_classifier.py`**: This is the Bloom's Taxonomy analysis engine. It uses the `spaCy` NLP library to perform linguistic analysis. Its classification is based on a multi-layered heuristic model that scores text based on the presence of specific verbs and nouns, high-impact phrase overrides, and the grammatical structure of the text.
+- **`matcher.py`**: This is the heart of the analysis. It takes the list of questions and the list of syllabus topics as input. For each question, it calculates a match score against every topic using a specificity-aware hybrid model. This model intelligently blends a semantic vector score (from `Sentence-BERT`) with a keyword score derived from Part-of-Speech tagging.
 
-### Backend Deployment (Example: Render/Railway/Fly.io)
+### `src/utils.py` - Utilities
 
-1. Set environment variables in your deployment platform
-2. Ensure `ALLOWED_ORIGINS` includes your frontend URL
-3. Deploy using the provided `requirements.txt`
+- **`utils.py`**: This utility script acts as a singleton loader for all the machine learning models used in the project. It contains functions to load models like `Sentence-BERT`, ensuring that each large model is loaded into memory only once, improving efficiency and resource management.
 
-### Frontend Deployment (Example: Vercel/Netlify)
+## Setup and Usage
 
-1. Set `NEXT_PUBLIC_BACKEND_URL` to your deployed backend URL
-2. Deploy the `frontend` directory
-3. Ensure CORS is properly configured on the backend
+1.  **Install Dependencies:** Install all required Python packages from the requirements file.
 
----
+    ```
+    pip install -r requirements.txt
+    ```
 
-## Troubleshooting
+2.  **Run the Application:** Start the Streamlit web server.
+    ```
+    streamlit run app.py
+    ```
 
-### Backend Issues
-
-**API Key Error:**
-
-- Ensure your `GOOGLE_API_KEY` is set in the `.env` file
-- Verify the API key is valid at Google AI Studio
-
-**CORS Errors:**
-
-- Check that your frontend URL is in the `ALLOWED_ORIGINS` environment variable
-- Restart the backend server after changing environment variables
-
-### Frontend Issues
-
-**Connection Refused:**
-
-- Ensure the backend is running on the configured port (default: 8000)
-- Verify `NEXT_PUBLIC_BACKEND_URL` in `.env.local` matches your backend URL
-
-**Module Not Found:**
-
-- Run `pnpm install` in the frontend directory
-- Clear the `.next` cache and rebuild: `rm -rf .next && pnpm dev`
-
----
+**Note on Models:** The first time you run the application, the necessary NLP models from `spaCy` (for linguistic analysis) and `sentence-transformers` (for semantic analysis) will be downloaded and cached automatically. This may take a few minutes, but it is a one-time process. No manual model download is required.
 
 ## License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
-
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)

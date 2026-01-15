@@ -1,0 +1,25 @@
+# Core UI & Data
+streamlit
+pandas
+numpy
+scipy
+
+# Machine Learning Core
+torch
+torchvision
+accelerate
+transformers
+
+# Syllabus Parsing (PDF -> Markdown)
+pymupdf4llm
+
+# Exam Parsing (Layout & Vision)
+ultralytics
+einops
+timm
+pillow
+
+# Logic & Matching
+lm-format-enforcer
+sentence-transformers
+spacy
