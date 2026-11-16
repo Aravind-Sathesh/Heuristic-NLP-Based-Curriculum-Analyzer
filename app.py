@@ -1,9 +1,12 @@
-import streamlit as st
-import pandas as pd
-from src.parser.syllabus_parser import pdf_to_markdown
-from src.logic.structured import extract_structured_syllabus
-from src.parser.exam_parser import parse_exam_pdf
 from src.logic.matcher import match_questions_to_syllabus
+from src.parser.exam_parser import parse_exam_pdf
+from src.logic.structured import extract_structured_syllabus
+from src.parser.syllabus_parser import pdf_to_markdown
+import pandas as pd
+import streamlit as st
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 st.set_page_config(layout="wide", page_title="Curriculum Analyzer")
 

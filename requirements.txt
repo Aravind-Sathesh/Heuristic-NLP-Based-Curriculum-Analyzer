@@ -12,12 +12,16 @@ transformers
 
 # Syllabus Parsing (PDF -> Markdown)
 pymupdf4llm
+pymupdf_layout
 
 # Exam Parsing (Layout & Vision)
 ultralytics
 einops
 timm
 pillow
+pytesseract
+pdf2image
+opencv-python
 
 # Logic & Matching
 lm-format-enforcer

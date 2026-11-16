@@ -88,6 +88,7 @@ def match_questions_to_syllabus(syllabus_data, exam_questions):
     for q in exam_questions:
         q_raw = q.get('text', '')
         q_clean = clean_text_for_embedding(q_raw)
+
         if len(q_clean) < 10 or "page" in q_clean[:10]:
             continue
 

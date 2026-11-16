@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: "LLM-Based Curriculum Analyzer (2025)"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: Aravind
+    family-names: Sathesh
+repository-code: "https://github.com/Aravind-Sathesh/LLM-Based-Curriculum-Analyzer"
+license: Apache-2.0
+date-released: 2025-12-17
+abstract: >-
+  A deterministic Streamlit tool for analysing the alignment between a course
+  handout and its question papers, by topic coverage and Bloom's taxonomy level:
+  coordinate-based PDF parsing, OCR, a spaCy Bloom classifier and Sentence-BERT
+  matching. Archived in 2026 and superseded by a knowledge-graph pipeline.
