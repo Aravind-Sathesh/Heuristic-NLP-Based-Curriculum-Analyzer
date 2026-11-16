@@ -1,3 +1,10 @@
+> **Archived, November 2026.** No longer developed. Kept as the record of the 2025
+> work. The successor authors a Bloom level into every lecture-plan row of the
+> handout, so extraction reads the level instead of guessing it from prose, needs no
+> model, and builds a Neo4j knowledge graph the question papers are matched against.
+> That work is not public yet; contact the author for access. The handouts come from
+> the [Handout Builder](https://github.com/Aravind-Sathesh/HandoutMaker).
+
 # Heuristic NLP Curriculum Analyzer
 
 This project is a tool designed to analyze the alignment between a course syllabus (or handout) and its corresponding exam paper. It evaluates alignment on two primary dimensions: topic coverage and the cognitive level of questions, based on Bloom's Taxonomy. The final output is an interactive report where the user can validate and override the AI's initial analysis.
