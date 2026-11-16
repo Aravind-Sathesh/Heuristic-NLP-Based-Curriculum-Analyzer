@@ -19,7 +19,7 @@
 = Heuristic NLP Curriculum Analyzer
 
 #set text(size: 10.5pt)
-Aravind Sathesh,  
+Aravind Sathesh,
 BITS Pilani · December 2025
 
 == Introduction
